@@ -7,37 +7,131 @@
 #include "DBCache.h"
 
 
-namespace HY{
+namespace HY {
 
-class Signature {
-public:
+	struct POSITION {
+		double lon; 
+		double lat; 
+		double alt; 
+		double heading; 
+		double pitch; 
+		double roll;
+	};
+
+	struct GeoCoord {
+		double lat; // 纬度，度
+		double lon; // 经度，度
+		double alt; // 高度，米
+	};
+
+	struct FOV {
+		double minAz, maxAz;   // deg
+		double minEle, maxEle; // deg
+		double maxRange;       // m
+	};
+
+	
+
+	class Signature {
+	public:
 
 
+		double GetRCS(POSITION Pos, double maxRange, double minAz, double maxAz, double minEle, double maxEle, double freq, polarization pol, std::string platformName, POSITION myPos);
+		//double GetRCS(double lon, double lat, double alt, double heading, double pitch, double roll, double maxRange, double min);
+
+		/// 将经纬高转换为 ECEF 坐标
+		void LLA2ECEF(const GeoCoord& geo, double& x, double& y, double& z) {
+			double lat = geo.lat * DEG2RAD;
+			double lon = geo.lon * DEG2RAD;
+			double R = EARTH_RADIUS + geo.alt;
+			x = R * cos(lat) * cos(lon);
+			y = R * cos(lat) * sin(lon);
+			z = R * sin(lat);
+		}
+
+		/// 将目标点转换到观测方 ENU 坐标系
+		void ECEF2ENU(const GeoCoord& obs, double tx, double ty, double tz,double& ex, double& ey, double& ez) {
+			double lat = obs.lat * DEG2RAD;
+			double lon = obs.lon * DEG2RAD;
+
+			double ox, oy, oz;
+			LLA2ECEF(obs, ox, oy, oz);
+
+			double dx = tx - ox;
+			double dy = ty - oy;
+			double dz = tz - oz;
+
+			// ENU 矩阵
+			double t[3][3] = {
+				{-sin(lon),           cos(lon),          0},
+				{-sin(lat) * cos(lon), -sin(lat) * sin(lon), cos(lat)},
+				{ cos(lat) * cos(lon),  cos(lat) * sin(lon), sin(lat)}
+			};
+
+			ex = t[0][0] * dx + t[0][1] * dy + t[0][2] * dz;
+			ey = t[1][0] * dx + t[1][1] * dy + t[1][2] * dz;
+			ez = t[2][0] * dx + t[2][1] * dy + t[2][2] * dz;
+		}
+
+		/// 判断是否在视场
+		bool InFOV(const GeoCoord& obs, double heading_deg, double pitch_deg,const FOV& fov, const GeoCoord& tgt)
+		{
+			// 1. 坐标转换
+			double tx, ty, tz;
+			LLA2ECEF(tgt, tx, ty, tz);
+
+			double ex, ey, ez;
+			ECEF2ENU(obs, tx, ty, tz, ex, ey, ez);
+
+			double range = sqrt(ex * ex + ey * ey + ez * ez);
+			if (range > fov.maxRange) return false;
+
+			// 2. 转换为水平坐标系角度
+			double az = atan2(ex, ey) / DEG2RAD;    // 注意：ENU下 az = atan2(East, North)
+			double el = atan2(ez, sqrt(ex * ex + ey * ey)) / DEG2RAD;
+
+			// 3. 考虑观测方的 heading、pitch
+			az -= heading_deg;
+			el -= pitch_deg;
+
+			// 将角度归一化到 [-180, 180]
+			auto normDeg = [](double a) {
+				while (a > 180) a -= 360;
+				while (a < -180) a += 360;
+				return a;
+				};
+			az = normDeg(az);
+			el = normDeg(el);
+
+			// 4. 判断是否在视场范围
+			if (az < fov.minAz || az > fov.maxAz) return false;
+			if (el < fov.minEle || el > fov.maxEle) return false;
+
+			return true;
+		}
+
+		
+		RCSCache cache;
+	private:
+		// RCS
+		double current_RCS = 0.0;
+
+		double current_IR = 0.0;
+
+		double current_ESM = 0.0;
+
+		double current_ECM = 0.0;
+		
+		const double PI = 3.14159265358979323846;
+		const double DEG2RAD = PI / 180.0;
+		const double EARTH_RADIUS = 6371000.0; // m
+		//std::vector<RCSRecord> records_RCS; // RCS
+		//std::vector<RCSRecord> records; // IR
+		//std::vector<RCSRecord> records; // ESM
+		//std::vector<RCSRecord> records; // ECM
 
 
-	// Ŀ������
-	double current_RCS = 0.0;
-
-	double current_IR = 0.0;
-
-	double current_ESM = 0.0;
-
-	double current_ECM = 0.0;
-
-
-
-
-private:
-
-	RCSCache cache;
-
-	//std::vector<RCSRecord> records_RCS; // RCS
-	//std::vector<RCSRecord> records; // IR
-	//std::vector<RCSRecord> records; // ESM
-	//std::vector<RCSRecord> records; // ECM
-
-
-};
+	};
 
 }
 
