@@ -61,8 +61,8 @@ bool HY::RCSCache::loadFromDB(const std::string & host, const std::string & user
 		records.emplace_back(name, freq, pol, az, el, rcs);
 
 		// 插入索引 map
-		const auto& record = &records.back();
-		name_index[name].push_back(record);
+		const HY::RCSRecord rec = records.back();
+		name_index[name].push_back(rec);
 	}
 
 	// 释放资源
@@ -71,27 +71,15 @@ bool HY::RCSCache::loadFromDB(const std::string & host, const std::string & user
 	return true;
 }
 
-const std::vector<const HY::RCSRecord*>& HY::RCSCache::findByAircraft(const std::string & name)
+
+std::vector<HY::RCSRecord> HY::RCSCache::findByAircraft(const std::string& name)
 {
-	
-	static const std::vector<const RCSRecord*> empty; // �ս��
+	static std::vector<RCSRecord> empty; //
 
 	auto it = name_index.find(name);
 	if (it != name_index.end()) {
 		return it->second;
 	}
 	return empty;
-	
 }
 
-//const std::vector<const HY::RCSRecord*>& HY::RCSCache::findByFrequency(int freq)
-//{
-//	
-//	static const std::vector<const RCSRecord*> empty; // �ս��
-//
-//	auto it = freq_index.find(freq);
-//	if (it != freq_index.end()) {
-//		return it->second;
-//	}
-//	return empty;
-//}

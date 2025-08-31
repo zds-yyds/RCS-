@@ -39,18 +39,18 @@ namespace HY {
 	class RCSCache {
 	private:
 		std::vector<RCSRecord> records; // 
-		// 
-		std::unordered_map<std::string, std::vector<const RCSRecord*>> name_index;
+		
+		//std::unordered_map<std::string, std::vector<const RCSRecord*>> name_index;
 
 
 	public:
 
+		std::unordered_map<std::string, std::vector<HY::RCSRecord>> name_index;
+
 		bool loadFromDB(const std::string& host, const std::string& user, const std::string& password, const std::string& database);
 
 
-		const std::vector<const RCSRecord*>& findByAircraft(const std::string& name);
-
-
+		std::vector<HY::RCSRecord> findByAircraft(const std::string& name);
 
 
 	};
