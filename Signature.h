@@ -38,6 +38,8 @@ namespace HY {
 
 		double GetRCS(POSITION Pos, double freq, polarization pol, std::string platformName, POSITION myPos);
 
+		double GetIR(POSITION Pos, double temperature, thrustState thrust, std::string platformName, POSITION myPos);
+
 		/// 将经纬高转换为 ECEF 坐标
 		void LLA2ECEF(const GeoCoord& geo, double& x, double& y, double& z) {
 			double lat = geo.lat * DEG2RAD;
@@ -112,9 +114,12 @@ namespace HY {
 		/// 从被观测者角度，计算观测者的相对方位角和俯仰角
 		void RelativeAzEl(const GeoCoord& observer, const GeoCoord& target,double heading_deg, double pitch_deg,double& relAz_deg, double& relEl_deg);
 		
-		
+		/// 从本地缓存中查找对应的RCS值
 		double findRCS(std::vector<RCSRecord>& records, const std::string& name, double frequency, const std::string& polarization, double azimuth, double elevation);
 		
+		/// 从本地缓存中查找对应的IR值
+		double findIR(std::vector<IRRecord>& records, const std::string& name, const std::string& thrust_state, int env_temperature, double azimuth, double elevation);
+
 		
 		RCSCache cache;
 	private:
@@ -131,11 +136,11 @@ namespace HY {
 		const double DEG2RAD = PI / 180.0;
 		const double RAD2DEG = 180.0 / PI;
 		const double EARTH_RADIUS = 6371000.0; // m
+
 		//std::vector<RCSRecord> records_RCS; // RCS
 		//std::vector<RCSRecord> records; // IR
 		//std::vector<RCSRecord> records; // ESM
 		//std::vector<RCSRecord> records; // ECM
-
 
 	};
 

@@ -60,6 +60,16 @@ inline std::string polarizationToString(HY::polarization p)
 	}
 }
 
+inline std::string thrustStateToString(HY::thrustState t)
+{
+	switch (t)
+	{
+	case HY::thrustState::MIL: return "MIL";
+	case HY::thrustState::AB: return "AB";
+	default: return "Unknown";
+	}
+}
+
 inline int azIndex(double relAz_deg) {
 	if ((relAz_deg >= -180 && relAz_deg < -135) || (relAz_deg > 135 && relAz_deg <= 180))
 		return 0; // 后
@@ -82,19 +92,28 @@ inline int elIndex(double relEl_deg) {
 inline int findFreqIndex(double freq) {
 	double freqBands[] = { 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5 };
 	for (int i = 0; i < 11; ++i) {
-		if ((i == 0 && freq > 0 && freq <= freqBands[i]) ||
-			(i > 0 && freq > freqBands[i - 1] && freq <= freqBands[i]))
+		if ((i == 0 && freq > 0 && freq <= freqBands[i]) || (i > 0 && freq > freqBands[i - 1] && freq <= freqBands[i]))
 			return i + 1; // 返回 1,2,3...
 	}
 	if (freq > 11.5) return 12;
 	return -1; // 无效
 }
 
+inline int findTemperatureIndex(double temperature) {
+	if (temperature <= -15) return -20;
+	if (temperature > -15 && temperature <= -5) return -10;
+	if (temperature > -5 && temperature <= 5) return 0;
+	if (temperature > 5 && temperature <= 15) return 10;
+	if (temperature > 15 && temperature <= 25) return 20;
+	if (temperature > 25 && temperature <= 35) return 30;
+	if (temperature > 35) return 40;
+	return -1;
+}
+
 double HY::Signature::findRCS(std::vector<RCSRecord>& records, const std::string& name, double frequency, const std::string& polarization, double azimuth, double elevation)
 {
 	for (RCSRecord rec : records) {
-		//if (!rec) continue;
-		std::string x = rec.aircraft_name;
+		
 		if (rec.aircraft_name == name &&
 			nearlyEqual(rec.frequency, frequency) &&
 			rec.polarization == polarization &&
@@ -105,6 +124,22 @@ double HY::Signature::findRCS(std::vector<RCSRecord>& records, const std::string
 		}
 	}
 	return 0;
+}
+
+double HY::Signature::findIR(std::vector<IRRecord>& records, const std::string & name, const std::string & thrust_state, int env_temperature, double azimuth, double elevation)
+{
+	for (IRRecord rec : records) {
+		
+		if (rec.aircraft_name == name &&
+			rec.thrust_state == thrust_state &&
+			rec.env_temperature == env_temperature &&
+			nearlyEqual(rec.azimuth, azimuth) &&
+			nearlyEqual(rec.elevation, elevation))
+		{
+			return rec.ir_value;
+		}
+	}
+	return 0.0;
 }
 
 double HY::Signature::GetRCS(POSITION Pos, double freq, polarization pol, std::string platformName, POSITION myPos)
@@ -124,7 +159,7 @@ double HY::Signature::GetRCS(POSITION Pos, double freq, polarization pol, std::s
 
 			if (freqIndex > 0 && az >= 0 && el >= 0) {
 				// 对应的固定 az/el/freq 查找
-				double azVal[] = { -180, -90, 0, 90 };   // 示例
+				double azVal[] = { 180, -90, 0, 90 };   // 示例
 				double elVal[] = { -90, 0, 90 };
 
 				return findRCS(data_name, platformName, freqIndex, polarizationToString(pol),azVal[az], elVal[el]);
@@ -142,3 +177,39 @@ double HY::Signature::GetRCS(POSITION Pos, double freq, polarization pol, std::s
 	
 	return 0;
 }
+
+double HY::Signature::GetIR(POSITION Pos, double temperature, thrustState thrust, std::string platformName, POSITION myPos)
+{
+	const GeoCoord GeoPos = { Pos.lat,Pos.lon,Pos.alt };
+	const GeoCoord myGeoPos = { myPos.lat,myPos.lon,myPos.alt };
+	double relAz_deg = 0, relEl_deg = 0;
+	RelativeAzEl(GeoPos, myGeoPos, myPos.heading, myPos.pitch, relAz_deg, relEl_deg);
+	if (cache.name_index_ir.find(platformName) != cache.name_index_ir.end()) {
+		auto it = cache.name_index_ir.find(platformName);
+		if (it != cache.name_index_ir.end() && !it->second.empty()) {
+			std::vector<IRRecord> data_name = it->second;
+
+			int temIndex = findTemperatureIndex(temperature);
+			int az = azIndex(relAz_deg);
+			int el = elIndex(relEl_deg);
+
+			if ( az >= 0 && el >= 0) {
+				// 对应的固定 az/el/freq 查找
+				double azVal[] = { 180, -90, 0, 90 };   // 示例
+				double elVal[] = { -90, 0, 90 };
+
+				return findIR(data_name, platformName, thrustStateToString(thrust), temIndex, azVal[az], elVal[el]);
+			}
+
+		}
+		else {
+			std::cout << "数据库未正确读取！ " << " \n" << std::endl;
+			return 0;
+		}
+	}
+	else {
+		std::cout << "不存在的平台: " << platformName << " \n" << std::endl;
+	}
+	return 0.0;
+}
+
