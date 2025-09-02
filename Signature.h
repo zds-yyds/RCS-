@@ -26,7 +26,7 @@ namespace HY {
 	struct FOV {
 		double minAz, maxAz;   // deg
 		double minEle, maxEle; // deg
-		double maxRange;       // m
+		double maxRange;       // km
 	};
 
 	
@@ -34,11 +34,15 @@ namespace HY {
 	class Signature {
 	public:
 
-		double GetRCS(POSITION Pos, double maxRange, double minAz, double maxAz, double minEle, double maxEle, double freq, polarization pol, std::string platformName, POSITION myPos);
+		double GetRCS(POSITION Pos, double maxRange/*km*/, double minAz, double maxAz, double minEle, double maxEle, double freq, polarization pol, std::string platformName, POSITION myPos);
 
 		double GetRCS(POSITION Pos, double freq, polarization pol, std::string platformName, POSITION myPos);
 
 		double GetIR(POSITION Pos, double temperature, thrustState thrust, std::string platformName, POSITION myPos);
+
+		std::vector<ESMRecord> GetESM(POSITION Pos, std::string platformName, POSITION myPos);
+
+		std::vector<ECMRecord> GetECM(POSITION Pos, std::string platformName, POSITION myPos);
 
 		/// 将经纬高转换为 ECEF 坐标
 		void LLA2ECEF(const GeoCoord& geo, double& x, double& y, double& z) {
@@ -109,6 +113,62 @@ namespace HY {
 			if (el < fov.minEle || el > fov.maxEle) return false;
 
 			return true;
+		}
+
+		/// 判断目标是否在观测者视线上的可见区域（不被地球挡住）
+		bool IsVisible(const GeoCoord& obs, const GeoCoord& tgt) {
+			// 1. 获取观测者和目标的 ECEF 坐标
+			double ox, oy, oz;
+			double tx, ty, tz;
+			LLA2ECEF(obs, ox, oy, oz);
+			LLA2ECEF(tgt, tx, ty, tz);
+
+			// 2. 构建从观测者指向目标的方向向量
+			double dx = tx - ox;
+			double dy = ty - oy;
+			double dz = tz - oz;
+
+			// 3. 标准化方向向量
+			double dNorm = sqrt(dx*dx + dy*dy + dz*dz);
+			dx /= dNorm;
+			dy /= dNorm;
+			dz /= dNorm;
+
+			// 4. 射线起点到地心的向量
+			double oxv = ox;
+			double oyv = oy;
+			double ozv = oz;
+
+			// 5. 计算射线是否与地球球体（地心，半径 R）相交
+			double b = 2 * (oxv*dx + oyv*dy + ozv*dz);
+			double c = oxv*oxv + oyv*oyv + ozv*ozv - EARTH_RADIUS * EARTH_RADIUS;
+
+			double discriminant = b*b - 4 * c;
+
+			if (discriminant < 0) {
+				// 没有交点，视线没穿过地球 ⇒ 可见
+				return true;
+			}
+
+			// 有交点，计算最近的交点距离
+			double t1 = (-b - sqrt(discriminant)) / 2.0;
+			double t2 = (-b + sqrt(discriminant)) / 2.0;
+
+			// 判断交点是否在目标之前
+			double rangeToTarget = dNorm;
+			if (t1 > 1e-6 && t1 < rangeToTarget) {
+				// 目标之前有地球挡住 ⇒ 不可见
+				return false;
+			}
+
+			return true;
+		}
+
+		///在视场内且视线上的可见
+		bool InFOVAndVisible(const GeoCoord& obs, double heading_deg, double pitch_deg,const FOV& fov, const GeoCoord& tgt) {
+			bool one = InFOV(obs, heading_deg, pitch_deg, fov, tgt);
+			bool two = IsVisible(obs, tgt);
+			return one && two;
 		}
 
 		/// 从被观测者角度，计算观测者的相对方位角和俯仰角

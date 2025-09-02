@@ -1,13 +1,13 @@
 #include "Signature.h"
 #include <cmath>
 
-double HY::Signature::GetRCS(POSITION Pos, double maxRange, double minAz, double maxAz, double minEle, double maxEle, double freq, polarization pol, std::string platformName, POSITION myPos)
+double HY::Signature::GetRCS(POSITION Pos, double maxRange/*km*/, double minAz, double maxAz, double minEle, double maxEle, double freq, polarization pol, std::string platformName, POSITION myPos)
 {
 	/*判断是否进入探测方视场*/
 	const GeoCoord GeoPos = { Pos.lat,Pos.lon,Pos.alt};
 	const GeoCoord myGeoPos = { myPos.lat,myPos.lon,myPos.alt };
 	const FOV fov = { minAz ,maxAz ,minEle,maxEle,maxRange };
-	if (InFOV(GeoPos, Pos.heading, Pos.pitch, fov, myGeoPos)) {
+	if (InFOVAndVisible(GeoPos, Pos.heading, Pos.pitch, fov, myGeoPos)) {
 		double relAz_deg = 0, relEl_deg = 0;
 		//RelativeAzEl(GeoPos, myGeoPos, myPos.heading, myPos.pitch, relAz_deg, relEl_deg);
 		return GetRCS(Pos, freq, pol, platformName, myPos);
@@ -211,5 +211,79 @@ double HY::Signature::GetIR(POSITION Pos, double temperature, thrustState thrust
 		std::cout << "不存在的平台: " << platformName << " \n" << std::endl;
 	}
 	return 0.0;
+}
+
+std::vector<HY::ESMRecord> HY::Signature::GetESM(POSITION Pos, std::string platformName, POSITION myPos)
+{
+	std::vector<HY::ESMRecord> esm;
+	if (cache.name_index_esm.find(platformName) != cache.name_index_esm.end()) {
+		auto it = cache.name_index_esm.find(platformName);
+		if (!it->second.empty()) {
+			std::vector<HY::ESMRecord> data_name = it->second;
+
+			const GeoCoord GeoPos = { Pos.lat,Pos.lon,Pos.alt };
+			const GeoCoord myGeoPos = { myPos.lat,myPos.lon,myPos.alt };
+			for (ESMRecord rec : data_name) {
+				if (rec.system_type == "RADAR") {
+					const FOV fov = { rec.minAz ,rec.maxAz ,rec.minEle,rec.maxEle,1000 * 1000 };
+					if (InFOVAndVisible(myGeoPos, myPos.heading, myPos.pitch, fov, GeoPos)) {
+						///如果对方进入我方雷达的视场内
+						esm.push_back(rec);
+					}
+				}
+				if (rec.system_type == "COMM") {
+					const FOV fov = { -180 ,180 ,-90 ,90 ,2000 * 1000 };
+					if (InFOVAndVisible(myGeoPos, myPos.heading, myPos.pitch, fov, GeoPos)) {
+						///如果对方进入我方通信的视场内
+						esm.push_back(rec);
+					}
+				}
+			}
+
+			return esm;
+
+		}
+		else {
+			std::cout << "数据库未正确读取！ " << " \n" << std::endl;
+		}
+	}
+	return std::vector<ESMRecord>();
+}
+
+std::vector<HY::ECMRecord> HY::Signature::GetECM(POSITION Pos, std::string platformName, POSITION myPos)
+{
+	std::vector<HY::ECMRecord> ecm;
+	if (cache.name_index_ecm.find(platformName) != cache.name_index_ecm.end()) {
+		auto it = cache.name_index_ecm.find(platformName);
+		if (!it->second.empty()) {
+			std::vector<HY::ECMRecord> data_name = it->second;
+
+			const GeoCoord GeoPos = { Pos.lat,Pos.lon,Pos.alt };
+			const GeoCoord myGeoPos = { myPos.lat,myPos.lon,myPos.alt };
+			for (ECMRecord rec : data_name) {
+				if (rec.system_type == "RADAR") {
+					const FOV fov = { rec.minAz ,rec.maxAz ,rec.minEle,rec.maxEle,1000 };
+					if (InFOVAndVisible(myGeoPos, myPos.heading, myPos.pitch, fov, GeoPos)) {
+						///如果对方进入我方雷达的视场内
+						ecm.push_back(rec);
+					}
+				}
+				if (rec.system_type == "COMM") {
+					const FOV fov = { -180 ,180 ,-90 ,90 ,2000 };
+					if (InFOVAndVisible(myGeoPos, myPos.heading, myPos.pitch, fov, GeoPos)) {
+						///如果对方进入我方通信的视场内
+						ecm.push_back(rec);
+					}
+				}
+			}
+
+			return ecm;
+
+		}
+		else {
+			std::cout << "数据库未正确读取！ " << " \n" << std::endl;
+		}
+	}
+	return std::vector<ECMRecord>();
 }
 

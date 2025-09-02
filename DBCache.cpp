@@ -91,7 +91,7 @@ bool HY::RCSCache::loadFromDB(const std::string & host, const std::string & user
 	MYSQL_FIELD* fields = mysql_fetch_fields(res);
 
 	while ((row = mysql_fetch_row(res))) {
-		// 按列索引读取每列
+
 		int id = row[0] ? std::stoi(row[0]) : 0;
 		std::string name = row[1] ? row[1] : "NULL";
 		double freq = row[2] ? std::stod(row[2]) : 0.0;
@@ -100,16 +100,13 @@ bool HY::RCSCache::loadFromDB(const std::string & host, const std::string & user
 		double el = row[5] ? std::stod(row[5]) : 0.0;
 		double rcs = row[6] ? std::stod(row[6]) : 0.0;
 
-		// 构造你的记录对象
 		records.emplace_back(name, freq, pol, az, el, rcs);
 
-		// 插入索引 map
 		const HY::RCSRecord rec = records.back();
 		name_index[name].push_back(rec);
 	}
 
 	while ((row_ir = mysql_fetch_row(res_ir))) {
-		// 按列索引读取每列数据
 		int id = row_ir[0] ? std::stoi(row_ir[0]) : 0;
 		std::string name = row_ir[1] ? row_ir[1] : "NULL";
 		std::string thrust_state = row_ir[2] ? row_ir[2] : "NULL";
@@ -118,10 +115,8 @@ bool HY::RCSCache::loadFromDB(const std::string & host, const std::string & user
 		double elevation = row_ir[5] ? std::stod(row_ir[5]) : 0.0;
 		double ir_value = row_ir[6] ? std::stod(row_ir[6]) : 0.0;
 
-		// 构造 IRRecord 并插入容器
 		ir_records.emplace_back(name, thrust_state, env_temp, azimuth, elevation, ir_value);
 
-		// 插入到索引 map（按飞机型号分组）
 		const IRRecord& rec = ir_records.back();
 		name_index_ir[name].push_back(rec);
 	}

@@ -11,6 +11,7 @@ void setConsoleUTF8() {
 
 int main() {
 	setConsoleUTF8();
+	// 设置 locale 让 std::cout 能正确处理中文
 #if 0
 	RCSCache cache;
 
@@ -36,7 +37,11 @@ int main() {
 	/*{ 121.9738,24.69609,8000,110,0,0 }   heading脸上大于300KM + 10  -- 0 */
 	/*{ 121.69078,24.7679,8000,110,0,0 }   heading脸上小于300KM - 10  -- 1 */
 
-	double val = sig.GetRCS({119.04,25.777,10,110,0,0}, 300000, -30, 30, 0, 60, 5000/*mHz*/, polarization::HH, "F-16", { 121.69078,24.7679,8000,110,0,0 });
-	std::cout << "RCS: " << val << " \n" << std::endl;
+	double RCS = sig.GetRCS({119.04,25.777,10,110,0,0}, 300000, -30, 30, 0, 60, 5000/*mHz*/, polarization::HH, "F-16", { 121.69078,24.7679,8000,110,0,0 });
+	std::cout << "RCS: " << RCS << " \n" << std::endl;
+	double IR = sig.GetIR({ 119.04,25.777,10,110,0,0 }, 20, thrustState::AB, "F-16", { 121.69078,24.7679,8000,110,0,0 });
+	std::cout << "IR: " << IR << " \n" << std::endl;
+	std::vector<HY::ESMRecord> ESM = sig.GetESM({ 119.04,25.777,10,110,0,0 }, "F-16", { 121.69078,24.7679,8000,-180,0,0 });
+	std::vector<HY::ESMRecord> ECM = sig.GetESM({ 119.04,25.777,10,110,0,0 }, "F-16", { 121.69078,24.7679,8000,-180,0,0 });
 	return 0;
 }
